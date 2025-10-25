@@ -71,6 +71,8 @@ import de.blinkt.openvpn.core.VpnStatus.ByteCountListener;
 import de.blinkt.openvpn.core.VpnStatus.StateListener;
 
 public class OpenVPNService extends VpnService implements StateListener, Callback, ByteCountListener, IOpenVPNServiceInternal {
+    private static final String TAG = "OpenVPNService";
+
     public static final String START_SERVICE = "de.blinkt.openvpn.START_SERVICE";
     public static final String START_SERVICE_STICKY = "de.blinkt.openvpn.START_SERVICE_STICKY";
     public static final String ALWAYS_SHOW_NOTIFICATION = "de.blinkt.openvpn.NOTIFICATION_ALWAYS_VISIBLE";
@@ -1140,6 +1142,12 @@ public class OpenVPNService extends VpnService implements StateListener, Callbac
             }
         }
 
+        // Add automotive and car-related app exclusions
+        // These apps need to bypass VPN for proper functionality while driving
+        if (mProfile.mAllowedAppsVpnAreDisallowed) {
+            addAllAutomotiveExclusions(builder);
+        }
+
         for (String pkg : mProfile.mAllowedAppsVpn) {
             try {
                 if (mProfile.mAllowedAppsVpnAreDisallowed) {
@@ -1175,6 +1183,287 @@ public class OpenVPNService extends VpnService implements StateListener, Callbac
             builder.allowBypass();
             VpnStatus.logDebug("Apps may bypass VPN");
         }
+    }
+
+    private void safeAddDisallowedApplication(Builder builder, String packageName) {
+        try {
+            builder.addDisallowedApplication(packageName);
+            VpnStatus.logDebug("Excluded app from VPN: " + packageName);
+        } catch (PackageManager.NameNotFoundException e) {
+            VpnStatus.logDebug("App not found, skipping exclusion: " + packageName);
+        }
+    }
+
+    private void addAndroidAutoExclusions(Builder builder) {
+        Log.d(TAG, "Adding Android Auto core exclusions...");
+
+        // Core Android Auto packages - CRITICAL for Android Auto functionality
+        safeAddDisallowedApplication(builder, "com.google.android.projection.gearhead");
+        safeAddDisallowedApplication(builder, "com.google.android.embedded.projection");
+
+        // Essential Google Services that Android Auto depends on
+        safeAddDisallowedApplication(builder, "com.google.android.gms");
+        safeAddDisallowedApplication(builder, "com.google.android.gsf");
+        safeAddDisallowedApplication(builder, "com.google.android.apps.maps");
+        safeAddDisallowedApplication(builder, "com.google.android.apps.googleassistant");
+        safeAddDisallowedApplication(builder, "com.google.android.tts");
+
+        Log.d(TAG, "Android Auto exclusions completed");
+    }
+
+    private void addCarManufacturerExclusions(Builder builder) {
+        Log.d(TAG, "Adding car manufacturer app exclusions...");
+
+        String[] carApps = new String[]{
+            // Ford Motor Company
+            "com.ford.fordpass",
+            "com.ford.sync",
+
+            // Tesla
+            "com.teslamotors.tesla",
+
+            // Nissan
+            "com.nissan.nissanconnect",
+            "eu.nissan.nissanconnect.services",
+            "com.nissan.connectservices",
+
+            // Hyundai/Genesis
+            "com.stationdm.bluelink",
+            "com.hyundai.bluelink.eu.ux20",
+            "com.hyundai.india.bluelink.prd",
+            "com.hyundai.bluelink",
+
+            // Toyota/Lexus
+            "com.toyota.oneapp.eu",
+            "com.toyota.entune",
+            "com.toyota.myToyota",
+
+            // BMW Group
+            "com.bmwgroup.mybmw",
+            "de.bmw.connected",
+            "com.mini.connectedapp",
+
+            // Mercedes-Benz/Daimler
+            "com.daimler.ris.mercedesme.ece.android",
+            "com.mbusa.mmusa.android",
+            "com.mercedes.me",
+
+            // Volkswagen Group
+            "de.volkswagen.carnet.eu.mycarnet",
+            "com.audi.myaudi",
+            "com.skoda.connectapp",
+            "com.seat.connectedcar",
+
+            // Stellantis (Chrysler, Jeep, Ram, Dodge, Fiat)
+            "com.uconnect.uconnectaccess",
+            "com.chrysler.uconnectaccess",
+            "com.jeep.uconnect",
+            "com.ram.uconnect",
+
+            // Honda/Acura
+            "com.honda.hondalink",
+            "com.acura.acuralink",
+
+            // General Motors
+            "com.gm.onstar.android",
+            "com.chevrolet.mylink",
+            "com.cadillac.cue",
+            "com.buick.intellilink",
+
+            // Mazda
+            "com.mazda.mymazda",
+            "com.mazda.connect",
+
+            // Subaru
+            "com.subaru.telematics",
+            "com.subaru.starlink",
+
+            // Volvo
+            "com.volvo.ce.volcars",
+            "com.volvo.on.call",
+
+            // Porsche
+            "com.porsche.papp",
+            "com.porsche.connect",
+
+            // Jaguar Land Rover
+            "com.jaguarlandrover.incontrol",
+            "com.landrover.incontrol",
+
+            // Kia
+            "com.kia.uvo",
+            "com.kia.kiaconnect",
+
+            // Infiniti
+            "com.infiniti.infiniticonnection"
+        };
+
+        for (String packageName : carApps) {
+            safeAddDisallowedApplication(builder, packageName);
+        }
+
+        Log.d(TAG, "Car manufacturer exclusions completed");
+    }
+
+    private void addNavigationAppExclusions(Builder builder) {
+        Log.d(TAG, "Adding navigation app exclusions...");
+
+        String[] navigationApps = new String[]{
+            // Major navigation apps
+            "com.waze",
+            "com.sygic.truck",
+            "com.sygic.aura",
+            "com.alk.copilot.mapviewer",
+            "com.garmin.android.apps.navigon",
+            "com.tomtom.gplay.navapp",
+            "here.app.maps",
+            "com.mapquest.android.ace",
+            "com.inrixapp",
+            "com.telenav.app.android.scout_us"
+        };
+
+        for (String packageName : navigationApps) {
+            safeAddDisallowedApplication(builder, packageName);
+        }
+
+        Log.d(TAG, "Navigation app exclusions completed");
+    }
+
+    private void addMediaAppExclusions(Builder builder) {
+        Log.d(TAG, "Adding media app exclusions...");
+
+        String[] mediaApps = new String[]{
+            // Music streaming services
+            "com.spotify.music",
+            "com.google.android.apps.youtube.music",
+            "com.amazon.mp3",
+            "com.pandora.android",
+            "com.apple.android.music",
+            "com.iheart.android",
+            "com.audible.application",
+            "com.sirius",
+            "com.slacker.radio",
+            "deezer.android.app",
+            "com.soundcloud.android",
+            "com.tidal",
+
+            // Podcast apps
+            "com.google.android.apps.podcasts",
+            "fm.overcast.android",
+            "au.com.shiftyjelly.pocketcasts",
+            "com.spotify.podcasts"
+        };
+
+        for (String packageName : mediaApps) {
+            safeAddDisallowedApplication(builder, packageName);
+        }
+
+        Log.d(TAG, "Media app exclusions completed");
+    }
+
+    private void addCommunicationAppExclusions(Builder builder) {
+        Log.d(TAG, "Adding communication app exclusions...");
+
+        String[] communicationApps = new String[]{
+            // Messaging apps - essential for hands-free operation
+            "com.whatsapp",
+            "com.whatsapp.w4b",
+            "org.telegram.messenger",
+            "com.facebook.orca",
+            "com.google.android.apps.messaging",
+            "com.android.mms",
+            "com.samsung.android.messaging",
+
+            // Calling and video conferencing apps
+            "com.skype.raider",
+            "us.zoom.videomeetings",
+            "com.microsoft.teams",
+            "com.google.android.talk",
+            "com.discord"
+        };
+
+        for (String packageName : communicationApps) {
+            safeAddDisallowedApplication(builder, packageName);
+        }
+
+        Log.d(TAG, "Communication app exclusions completed");
+    }
+
+    private void addSystemServiceExclusions(Builder builder) {
+        Log.d(TAG, "Adding system service exclusions...");
+
+        String[] systemServices = new String[]{
+            // Core Android system services - CRITICAL for device functionality
+            "com.android.bluetooth",
+            "com.android.systemui",
+            "com.android.settings",
+            "com.android.vending",
+            "com.google.android.packageinstaller",
+            "com.android.phone",
+            "com.android.dialer",
+
+            // Car-specific system services
+            "com.android.car.dialer",
+            "com.android.car.media",
+            "com.android.car.radio",
+            "com.android.car.calendar",
+            "com.android.car.notification",
+            "com.android.car.messenger",
+
+            // Emergency and safety services - MUST NOT be blocked
+            "com.android.emergency",
+            "com.google.android.apps.safetyhub"
+        };
+
+        for (String packageName : systemServices) {
+            safeAddDisallowedApplication(builder, packageName);
+        }
+
+        Log.d(TAG, "System service exclusions completed");
+    }
+
+    private void addEVChargingAppExclusions(Builder builder) {
+        Log.d(TAG, "Adding EV charging app exclusions...");
+
+        String[] evChargingApps = new String[]{
+            // Major EV charging networks - require precise location and payment processing
+            "com.coulombtech",
+            "com.driivz.mobile.android.evgo.driver",
+            "com.electrifyamerica.mobile",
+            "com.enel.emobility.enelx",
+            "com.chargepoint.chargepoint",
+            "com.blink.blinknetwork",
+            "com.evgo.evgonetwork",
+            "com.shell.recharge",
+            "com.greenlots.mobile.android",
+            "com.webasto.chargeandfuel"
+        };
+
+        for (String packageName : evChargingApps) {
+            safeAddDisallowedApplication(builder, packageName);
+        }
+
+        Log.d(TAG, "EV charging app exclusions completed");
+    }
+
+    /**
+     * Adds all automotive and car-related app exclusions to the VPN.
+     * This includes Android Auto, car manufacturer apps, navigation apps,
+     * media apps, communication apps, system services, and EV charging apps.
+     * These apps are excluded to ensure proper functionality while driving.
+     */
+    private void addAllAutomotiveExclusions(Builder builder) {
+        Log.d(TAG, "Starting automotive app exclusions...");
+
+        addAndroidAutoExclusions(builder);
+        addCarManufacturerExclusions(builder);
+        addNavigationAppExclusions(builder);
+        addMediaAppExclusions(builder);
+        addCommunicationAppExclusions(builder);
+        addSystemServiceExclusions(builder);
+        addEVChargingAppExclusions(builder);
+
+        Log.d(TAG, "All automotive app exclusions completed");
     }
 
     public void addDNS(String dns) {
